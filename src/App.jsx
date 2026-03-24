@@ -1,8 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api, PAGE_SIZE } from "./lib/api";
 import { useToast } from "./hooks/useToast";
 import { useAuth } from "./hooks/useAuth";
-import { useAutoRefresh } from "./hooks/useAutoRefresh";
 import { Toast } from "./components/Toast";
 import { LoginModal } from "./components/LoginModal";
 import { SearchView } from "./views/SearchView";
@@ -52,6 +51,11 @@ export default function App() {
   // ── Estado: stats ───────────────────────────────────────────────────────────
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
+
+  // Sube cada vez que una operación admin modifica datos (scraping/enrich).
+  // Los useEffect que dependen de esto refetchan automáticamente.
+  const [dataVersion, setDataVersion] = useState(0);
+  const bumpVersion = useCallback(() => setDataVersion((v) => v + 1), []);
 
   // ── Fetchers ────────────────────────────────────────────────────────────────
   const fetchStores = useCallback(async () => {
@@ -111,11 +115,28 @@ export default function App() {
     [push],
   );
 
-  // ── Auto-refresh ─────────────────────────────────────────────────────────────
-  useAutoRefresh(fetchStores, 20_000, view === "stores" || view === "search");
-  useAutoRefresh(fetchEnrichStatus, 15_000, view === "stores");
-  useAutoRefresh(fetchStats, 30_000, view === "stats");
-  useAutoRefresh(fetchAllProducts, 60_000, view === "search");
+  // ── Efectos de navegación ─────────────────────────────────────────────────
+  // Cada vista carga sus datos al entrar, no con polling.
+  useEffect(() => { fetchStores(); }, []);               // carga inicial
+  useEffect(() => { if (view === "stores") fetchStores(); }, [view]);
+  useEffect(() => { if (view === "stats")  fetchStats();  }, [view]);
+  useEffect(() => { if (view === "search" && !searched) fetchAllProducts(0, false); }, [view]);
+
+  // Cuando una operación admin termina, refresca productos y stats.
+  useEffect(() => {
+    if (dataVersion === 0) return;
+    if (view === "search") fetchAllProducts(0, false);
+    fetchStats();
+  }, [dataVersion]);
+
+  // EnrichStatus sí usa polling — corre en background en el servidor
+  // y el front no sabe cuándo termina.
+  useEffect(() => {
+    if (view !== "stores") return;
+    fetchEnrichStatus();
+    const id = setInterval(fetchEnrichStatus, 15_000);
+    return () => clearInterval(id);
+  }, [view]);
 
   // ── Auth handlers ─────────────────────────────────────────────────────────────
   async function handleLogin(username, password) {
@@ -248,6 +269,7 @@ export default function App() {
       const count =
         result.new_products ?? result.products_scraped ?? result.count ?? "?";
       push(`Scraping completo — ${count} productos nuevos`, "success");
+      bumpVersion();
     } catch (e) {
       push(`Error scrapeando: ${e.message}`, "error");
     } finally {
@@ -265,6 +287,7 @@ export default function App() {
       );
       const count = result.total_products ?? result.count ?? "?";
       push(`Scraping completo — ${count} productos totales`, "success");
+      bumpVersion();
     } catch (e) {
       push(`Error en scraping: ${e.message}`, "error");
     } finally {
@@ -286,6 +309,7 @@ export default function App() {
           : `✓ Todo clasificado (${n} procesados)`,
         "success",
       );
+      bumpVersion();
     } catch (e) {
       push(`Error enriqueciendo: ${e.message}`, "error");
     } finally {
@@ -309,6 +333,7 @@ export default function App() {
           : `✓ Tienda completamente clasificada (${n} procesados)`,
         "success",
       );
+      bumpVersion();
     } catch (e) {
       push(`Error: ${e.message}`, "error");
     } finally {
