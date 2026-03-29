@@ -1,4 +1,5 @@
 import { timeAgo } from "../lib/api";
+import { ScrapeStatusBadge } from "./ScrapeStatusBadge";
 
 export function StoreRow({
   store,
@@ -10,28 +11,39 @@ export function StoreRow({
   storeStatus,
   isAdmin,
 }) {
-  const pct        = storeStatus?.percent    ?? null;
-  const pending    = storeStatus?.pending    ?? null;
-  const total      = storeStatus?.total      ?? null;
+  const pct = storeStatus?.percent ?? null;
+  const pending = storeStatus?.pending ?? null;
+  const total = storeStatus?.total ?? null;
   const classified = storeStatus?.classified ?? null;
+  const lastScrape = storeStatus?.last_scrape ?? null;
 
   return (
     <div className={`store-row ${!store.active ? "inactive" : ""}`}>
-
       <div className="store-info">
         <span className={`status-dot ${store.active ? "active" : ""}`} />
         <div style={{ flex: 1 }}>
-          <p className="store-name">{store.name}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <p className="store-name">{store.name}</p>
+            <ScrapeStatusBadge
+              lastScrape={lastScrape}
+              isScraping={scraping === store.id}
+            />
+          </div>
           <p className="store-url">{store.url}</p>
           {total > 0 && (
             <div className="store-progress">
               <div className="store-progress-bar">
-                <div className="store-progress-fill" style={{ width: `${pct}%` }} />
+                <div
+                  className="store-progress-fill"
+                  style={{ width: `${pct}%` }}
+                />
               </div>
               <span className="store-progress-label">
                 {classified}/{total} clasificados
                 {pending > 0 && (
-                  <span className="store-pending-badge">{pending} pendientes</span>
+                  <span className="store-pending-badge">
+                    {pending} pendientes
+                  </span>
                 )}
               </span>
             </div>

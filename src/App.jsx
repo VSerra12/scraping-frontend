@@ -7,7 +7,7 @@ import { LoginModal } from "./components/LoginModal";
 import { SearchView } from "./views/SearchView";
 import { StoresView } from "./views/StoresView";
 import { StatsView } from "./views/StatsView";
-import Logo from '/src/assets/scrapeando_isologo.svg';
+import Logo from "/src/assets/scrapeando_isologo.svg";
 import "./app.css";
 
 export default function App() {
@@ -117,10 +117,18 @@ export default function App() {
 
   // ── Efectos de navegación ─────────────────────────────────────────────────
   // Cada vista carga sus datos al entrar, no con polling.
-  useEffect(() => { fetchStores(); }, []);               // carga inicial
-  useEffect(() => { if (view === "stores") fetchStores(); }, [view]);
-  useEffect(() => { if (view === "stats")  fetchStats();  }, [view]);
-  useEffect(() => { if (view === "search" && !searched) fetchAllProducts(0, false); }, [view]);
+  useEffect(() => {
+    fetchStores();
+  }, []); // carga inicial
+  useEffect(() => {
+    if (view === "stores") fetchStores();
+  }, [view]);
+  useEffect(() => {
+    if (view === "stats") fetchStats();
+  }, [view]);
+  useEffect(() => {
+    if (view === "search" && !searched) fetchAllProducts(0, false);
+  }, [view]);
 
   // Cuando una operación admin termina, refresca productos y stats.
   useEffect(() => {
@@ -341,6 +349,17 @@ export default function App() {
     }
   }
 
+  function isRecent(date) {
+    return (Date.now() - new Date(date).getTime()) / 1000 / 3600 < 48;
+  }
+
+  const storesWithError = byStore.filter(
+    (s) =>
+      s.last_scrape !== null &&
+      s.last_scrape.success === false &&
+      isRecent(s.last_scrape.started_at),
+  );
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <>
@@ -443,6 +462,7 @@ export default function App() {
               onEnrichStore={handleEnrichStore}
               onDeleteStore={handleDeleteStore}
               onAddStore={handleAddStore}
+              storesWithError={storesWithError}
             />
           )}
 

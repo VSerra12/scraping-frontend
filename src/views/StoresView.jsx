@@ -1,5 +1,7 @@
 import { StoreRow } from "../components/StoreRow";
 import { AddStoreModal } from "../components/AddStoreModal";
+import { ErrorModal } from "../components/ErrorModal";
+import { useState } from "react";
 
 export function StoresView({
   stores,
@@ -21,12 +23,22 @@ export function StoresView({
   onEnrichStore,
   onDeleteStore,
   onAddStore,
+  storesWithError,
 }) {
   const activeStores = stores.filter((s) => s.active);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   return (
     <>
       <div className="section-header">
+        {storesWithError.length > 0 && (
+          <div className="storeWithErrors">
+            <span>{storesWithError.length} tiendas con error</span>
+            <button onClick={() => setShowErrorModal(true)}>
+              Ver tiendas con error
+            </button>
+          </div>
+        )}
         <h2 className="section-title">Tiendas</h2>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           <button
@@ -37,7 +49,10 @@ export function StoresView({
             {loadingStores ? "⏳" : "⟳ Actualizar"}
           </button>
           {isAdmin && (
-            <button className="btn primary" onClick={() => setShowAddStore(true)}>
+            <button
+              className="btn primary"
+              onClick={() => setShowAddStore(true)}
+            >
               + Agregar tienda
             </button>
           )}
@@ -94,12 +109,24 @@ export function StoresView({
             </div>
           )}
 
-          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              justifyContent: "flex-end",
+            }}
+          >
             <button
               className="btn secondary"
               onClick={onEnrich}
-              disabled={enriching || !enrichStatus || enrichStatus.pending === 0}
-              title={enrichStatus?.pending === 0 ? "No hay pendientes" : "Clasificar hasta 50 productos"}
+              disabled={
+                enriching || !enrichStatus || enrichStatus.pending === 0
+              }
+              title={
+                enrichStatus?.pending === 0
+                  ? "No hay pendientes"
+                  : "Clasificar hasta 50 productos"
+              }
             >
               {enriching
                 ? "⏳ Clasificando…"
@@ -111,7 +138,9 @@ export function StoresView({
               onClick={onScrapeAll}
               disabled={scrapingAll}
             >
-              {scrapingAll ? "⏳ Scrapeando todas…" : "⟳ Scrapear todas las tiendas activas"}
+              {scrapingAll
+                ? "⏳ Scrapeando todas…"
+                : "⟳ Scrapear todas las tiendas activas"}
             </button>
           </div>
         </div>
@@ -121,11 +150,14 @@ export function StoresView({
       {!isAdmin && enrichStatus && enrichStatus.pending > 0 && (
         <div className="enrich-banner" style={{ marginTop: "1rem" }}>
           <span>
-            ⏳ <strong>{enrichStatus.pending}</strong> productos pendientes de clasificación
-            ({enrichStatus.percent}% listo)
+            ⏳ <strong>{enrichStatus.pending}</strong> productos pendientes de
+            clasificación ({enrichStatus.percent}% listo)
           </span>
           <div className="enrich-bar">
-            <div className="enrich-bar-fill" style={{ width: `${enrichStatus.percent}%` }} />
+            <div
+              className="enrich-bar-fill"
+              style={{ width: `${enrichStatus.percent}%` }}
+            />
           </div>
         </div>
       )}
@@ -135,6 +167,13 @@ export function StoresView({
           onClose={() => setShowAddStore(false)}
           onAdd={onAddStore}
           loading={addingStore}
+        />
+      )}
+
+      {showErrorModal && (
+        <ErrorModal
+          stores={storesWithError}
+          onClose={() => setShowErrorModal(false)}
         />
       )}
     </>

@@ -36,6 +36,8 @@
 
   --text:     var(--negro);
   --radius:   12px;
+  --error:    #ec4625;
+  --success:  #28a745;
 }
 
 /* ─── Base ───────────────────────────────────────────────────────────────────── */
@@ -520,6 +522,25 @@ option { background: var(--blanco); color: var(--negro); }
 }
 
 .scrape-all-bar { display: flex; justify-content: space-between; margin-top: 1rem; }
+
+.scrape-badge--ok{
+  color: #30a636;
+    background: #9eebaf;
+    border: 1px solid rgb(80 214 61 / 30%);
+    font-size: 0.82rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-weight: 600;
+}
+.scrape-badge--error{
+  color: var(--coral);
+    background: var(--coral-dim);
+    border: 1px solid var(--coral-border);
+    font-size: 0.82rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-weight: 600;
+}
 
 /* ─── Enrich banner → índigo + lila ─────────────────────────────────────────── */
 .enrich-banner {
