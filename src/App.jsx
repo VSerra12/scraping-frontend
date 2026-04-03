@@ -3,19 +3,37 @@ import { api, PAGE_SIZE } from "./lib/api";
 import { useToast } from "./hooks/useToast";
 import { useAuth } from "./hooks/useAuth";
 import { Toast } from "./components/Toast";
-import { LoginModal } from "./components/LoginModal";
 import { SearchView } from "./views/SearchView";
 import { StoresView } from "./views/StoresView";
 import { StatsView } from "./views/StatsView";
+import { AdminView, ADMIN_HASH } from "./views/AdminView";
 import Logo from "/src/assets/scrapeando_isologo.svg";
 import "./app.css";
 
 export default function App() {
   const [view, setView] = useState("search");
   const { toasts, push } = useToast();
-  const { isAdmin, login, logout, loginLoading, loginError, setError } =
-    useAuth();
-  const [showLogin, setShowLogin] = useState(false);
+  const {
+    isAdmin,
+    login,
+    logout,
+    checkSession,
+    loginLoading,
+    loginError,
+    setError,
+  } = useAuth();
+
+  // ── Ruta secreta admin ───────────────────────────────────────────────────────
+  const [isAdminRoute, setIsAdminRoute] = useState(
+    window.location.hash === `#/${ADMIN_HASH}`,
+  );
+
+  useEffect(() => {
+    const onHash = () =>
+      setIsAdminRoute(window.location.hash === `#/${ADMIN_HASH}`);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   // ── Estado: búsqueda ────────────────────────────────────────────────────────
   const [query, setQuery] = useState("");
@@ -52,8 +70,6 @@ export default function App() {
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
-  // Sube cada vez que una operación admin modifica datos (scraping/enrich).
-  // Los useEffect que dependen de esto refetchan automáticamente.
   const [dataVersion, setDataVersion] = useState(0);
   const bumpVersion = useCallback(() => setDataVersion((v) => v + 1), []);
 
@@ -115,30 +131,19 @@ export default function App() {
     [push],
   );
 
-  // ── Efectos de navegación ─────────────────────────────────────────────────
-  // Cada vista carga sus datos al entrar, no con polling.
-  useEffect(() => {
-    fetchStores();
-  }, []); // carga inicial
-  useEffect(() => {
-    if (view === "stores") fetchStores();
-  }, [view]);
-  useEffect(() => {
-    if (view === "stats") fetchStats();
-  }, [view]);
-  useEffect(() => {
-    if (view === "search" && !searched) fetchAllProducts(0, false);
-  }, [view]);
+  // ── Efectos ──────────────────────────────────────────────────────────────────
+  useEffect(() => { checkSession(); }, []);
+  useEffect(() => { fetchStores(); }, []);
+  useEffect(() => { if (view === "stores") fetchStores(); }, [view]);
+  useEffect(() => { if (view === "stats") fetchStats(); }, [view]);
+  useEffect(() => { if (view === "search" && !searched) fetchAllProducts(0, false); }, [view]);
 
-  // Cuando una operación admin termina, refresca productos y stats.
   useEffect(() => {
     if (dataVersion === 0) return;
     if (view === "search") fetchAllProducts(0, false);
     fetchStats();
   }, [dataVersion]);
 
-  // EnrichStatus sí usa polling — corre en background en el servidor
-  // y el front no sabe cuándo termina.
   useEffect(() => {
     if (view !== "stores") return;
     fetchEnrichStatus();
@@ -149,14 +154,12 @@ export default function App() {
   // ── Auth handlers ─────────────────────────────────────────────────────────────
   async function handleLogin(username, password) {
     const ok = await login(username, password);
-    if (ok) {
-      setShowLogin(false);
-      push("Sesión iniciada como administrador", "success");
-    }
+    if (ok) push("Sesión iniciada como administrador", "success");
+    return ok;
   }
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     push("Sesión cerrada", "info");
   }
 
@@ -228,18 +231,12 @@ export default function App() {
     setQuery("");
     setSearched(false);
     setOffset(0);
-    setFilters({
-      category: "",
-      color: "",
-      gender: "",
-      min_price: "",
-      max_price: "",
-    });
+    setFilters({ category: "", color: "", gender: "", min_price: "", max_price: "" });
     setSelectedStores([]);
     fetchAllProducts(0, false);
   }
 
-  // ── Handlers: tiendas (solo admin) ──────────────────────────────────────────
+  // ── Handlers: tiendas ────────────────────────────────────────────────────────
   async function handleAddStore(form) {
     setAddingStore(true);
     try {
@@ -274,8 +271,7 @@ export default function App() {
           st.id === id ? { ...st, last_scraped: new Date().toISOString() } : st,
         ),
       );
-      const count =
-        result.new_products ?? result.products_scraped ?? result.count ?? "?";
+      const count = result.new_products ?? result.products_scraped ?? result.count ?? "?";
       push(`Scraping completo — ${count} productos nuevos`, "success");
       bumpVersion();
     } catch (e) {
@@ -290,9 +286,7 @@ export default function App() {
     try {
       const result = await api.post("/scrape-all", {});
       const now = new Date().toISOString();
-      setStores((s) =>
-        s.map((st) => (st.active ? { ...st, last_scraped: now } : st)),
-      );
+      setStores((s) => s.map((st) => (st.active ? { ...st, last_scraped: now } : st)));
       const count = result.total_products ?? result.count ?? "?";
       push(`Scraping completo — ${count} productos totales`, "success");
       bumpVersion();
@@ -333,8 +327,7 @@ export default function App() {
       setByStore(result.status?.by_store || []);
       const n = result.enriched_this_run ?? 0;
       const pending =
-        result.status?.by_store?.find((s) => s.store_id === storeId)?.pending ??
-        0;
+        result.status?.by_store?.find((s) => s.store_id === storeId)?.pending ?? 0;
       push(
         pending > 0
           ? `✓ ${n} clasificados — quedan ${pending} pendientes`
@@ -356,23 +349,31 @@ export default function App() {
   const storesWithError = byStore.filter(
     (s) =>
       s.last_scrape !== null &&
-      s.last_scrape.success === false &&
-      isRecent(s.last_scrape.started_at),
+      s.last_scrape?.success === false &&
+      isRecent(s.last_scrape?.started_at),
   );
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ── Early return: ruta admin secreta ─────────────────────────────────────────
+  if (isAdminRoute) {
+    return (
+      <>
+        <Toast toasts={toasts} />
+        <AdminView
+          isAdmin={isAdmin}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          loginLoading={loginLoading}
+          loginError={loginError}
+          onClearError={() => setError("")}
+        />
+      </>
+    );
+  }
+
+  // ── Render público — sin ninguna referencia a admin ───────────────────────────
   return (
     <>
       <Toast toasts={toasts} />
-
-      {showLogin && (
-        <LoginModal
-          onLogin={handleLogin}
-          loading={loginLoading}
-          error={loginError}
-          onClearError={() => setError("")}
-        />
-      )}
 
       <div className="app">
         <nav>
@@ -395,25 +396,6 @@ export default function App() {
               </button>
             ))}
           </div>
-
-          {/* Botón admin en la nav */}
-          {isAdmin ? (
-            <button
-              className="btn-admin-logout"
-              onClick={handleLogout}
-              title="Cerrar sesión admin"
-            >
-              ⬡ Admin{" "}
-              <span style={{ fontSize: "0.7rem", opacity: 0.6 }}>✕</span>
-            </button>
-          ) : (
-            <button
-              className="btn-admin-login"
-              onClick={() => setShowLogin(true)}
-            >
-              Administrador
-            </button>
-          )}
         </nav>
 
         <main>
@@ -454,7 +436,7 @@ export default function App() {
               addingStore={addingStore}
               showAddStore={showAddStore}
               setShowAddStore={setShowAddStore}
-              isAdmin={isAdmin}
+              isAdmin={false}
               onRefresh={fetchStores}
               onScrapeStore={handleScrapeStore}
               onScrapeAll={handleScrapeAll}

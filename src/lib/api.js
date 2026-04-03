@@ -11,34 +11,39 @@ export const COLORS = [
 ];
 export const GENDERS = ["", "hombre", "mujer", "unisex"];
 
-// ─── Token en memoria (nunca en localStorage) ─────────────────────────────────
-// Módulo-level: sobrevive re-renders pero se limpia al cerrar la pestaña.
-let _token = null;
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+// Con httpOnly cookie ya no manejamos el token en JS.
+// isAdmin() lo determina el resultado de /auth/me al cargar la app.
+let _isAdmin = false;
 
 export const auth = {
-  setToken(t)  { _token = t; },
-  clearToken() { _token = null; },
-  getToken()   { return _token; },
-  isAdmin()    { return !!_token; },
+  setAdmin(val) { _isAdmin = val; },
+  clearAdmin()  { _isAdmin = false; },
+  isAdmin()     { return _isAdmin; },
 };
 
 // ─── Cliente HTTP ─────────────────────────────────────────────────────────────
-function authHeaders() {
-  return _token
-    ? { "Content-Type": "application/json", Authorization: `Bearer ${_token}` }
-    : { "Content-Type": "application/json" };
+// credentials: "include" es lo que hace que el navegador envíe la cookie
+// automáticamente en cada request. Sin esto, la cookie no se manda.
+
+function baseHeaders() {
+  return { "Content-Type": "application/json" };
 }
 
 export const api = {
   async get(path) {
-    const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: baseHeaders(),
+      credentials: "include",   // ← envía la httpOnly cookie
+    });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
   },
   async post(path, body) {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
-      headers: authHeaders(),
+      headers: baseHeaders(),
+      credentials: "include",   // ← envía la httpOnly cookie
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -47,10 +52,10 @@ export const api = {
   async del(path) {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "DELETE",
-      headers: authHeaders(),
+      headers: baseHeaders(),
+      credentials: "include",   // ← envía la httpOnly cookie
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    // DELETE devuelve 204 sin body
     if (res.status === 204) return null;
     return res.json();
   },
