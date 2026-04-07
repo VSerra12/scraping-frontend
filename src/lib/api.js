@@ -1,4 +1,4 @@
-export const API_BASE = "http://localhost:8000/api";
+export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
 export const PAGE_SIZE = 50;
 
 export const CATEGORIES = [
