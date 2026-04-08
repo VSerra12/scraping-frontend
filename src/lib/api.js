@@ -12,26 +12,22 @@ export const COLORS = [
 export const GENDERS = ["", "hombre", "mujer", "unisex"];
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-// El token se guarda en memoria (nunca en localStorage/sessionStorage).
-// Se pierde al recargar la página: el usuario deberá volver a iniciar sesión.
+// Con httpOnly cookie ya no manejamos el token en JS.
 // isAdmin() lo determina el resultado de /auth/me al cargar la app.
 let _isAdmin = false;
-let _token = null;
 
 export const auth = {
-  setAdmin(val)   { _isAdmin = val; },
-  clearAdmin()    { _isAdmin = false; },
-  isAdmin()       { return _isAdmin; },
-  setToken(token) { _token = token; },
-  clearToken()    { _token = null; },
-  getToken()      { return _token; },
+  setAdmin(val) { _isAdmin = val; },
+  clearAdmin()  { _isAdmin = false; },
+  isAdmin()     { return _isAdmin; },
 };
 
 // ─── Cliente HTTP ─────────────────────────────────────────────────────────────
+// credentials: "include" es lo que hace que el navegador envíe la cookie
+// automáticamente en cada request. Sin esto, la cookie no se manda.
+
 function baseHeaders() {
-  const headers = { "Content-Type": "application/json" };
-  if (_token) headers["Authorization"] = `Bearer ${_token}`;
-  return headers;
+  return { "Content-Type": "application/json" };
 }
 
 export const api = {
@@ -46,6 +42,7 @@ export const api = {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: baseHeaders(),
+      credentials: "include",   // ← envía la httpOnly cookie
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -55,6 +52,7 @@ export const api = {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "DELETE",
       headers: baseHeaders(),
+      credentials: "include",   // ← envía la httpOnly cookie
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     if (res.status === 204) return null;
