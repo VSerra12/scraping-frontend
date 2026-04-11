@@ -3,19 +3,37 @@ import { api, PAGE_SIZE } from "./lib/api";
 import { useToast } from "./hooks/useToast";
 import { useAuth } from "./hooks/useAuth";
 import { Toast } from "./components/Toast";
-import { LoginModal } from "./components/LoginModal";
 import { SearchView } from "./views/SearchView";
 import { StoresView } from "./views/StoresView";
 import { StatsView } from "./views/StatsView";
-import Logo from '/src/assets/scrapeando_isologo.svg';
-import "./app.css";
+import { AdminView, ADMIN_HASH } from "./views/AdminView";
+import Logo from "/src/assets/scrapeando_isologo.svg";
+import "./App.css";
 
 export default function App() {
   const [view, setView] = useState("search");
   const { toasts, push } = useToast();
-  const { isAdmin, login, logout, loginLoading, loginError, setError } =
-    useAuth();
-  const [showLogin, setShowLogin] = useState(false);
+  const {
+    isAdmin,
+    login,
+    logout,
+    checkSession,
+    loginLoading,
+    loginError,
+    setError,
+  } = useAuth();
+
+  // ── Ruta secreta admin ───────────────────────────────────────────────────────
+  const [isAdminRoute, setIsAdminRoute] = useState(
+    window.location.hash === `#/${ADMIN_HASH}`,
+  );
+
+  useEffect(() => {
+    const onHash = () =>
+      setIsAdminRoute(window.location.hash === `#/${ADMIN_HASH}`);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   // ── Estado: búsqueda ────────────────────────────────────────────────────────
   const [query, setQuery] = useState("");
@@ -47,7 +65,6 @@ export default function App() {
   const [enrichingStore, setEnrichingStore] = useState(null);
   const [enrichStatus, setEnrichStatus] = useState(null);
   const [byStore, setByStore] = useState([]);
-  const [reclassifying, setReclassifying] = useState(false);
 
   // ── Estado: stats ───────────────────────────────────────────────────────────
   const [stats, setStats] = useState(null);
@@ -114,10 +131,11 @@ export default function App() {
     [push],
   );
 
-  // ── Efectos de navegación ─────────────────────────────────────────────────
+  // ── Efectos ──────────────────────────────────────────────────────────────────
+  useEffect(() => { checkSession(); }, []);
   useEffect(() => { fetchStores(); }, []);
   useEffect(() => { if (view === "stores") fetchStores(); }, [view]);
-  useEffect(() => { if (view === "stats")  fetchStats();  }, [view]);
+  useEffect(() => { if (view === "stats") fetchStats(); }, [view]);
   useEffect(() => { if (view === "search" && !searched) fetchAllProducts(0, false); }, [view]);
 
   useEffect(() => {
@@ -133,17 +151,15 @@ export default function App() {
     return () => clearInterval(id);
   }, [view]);
 
-  // ── Auth handlers ─────────────────────────────────────────────────────────
+  // ── Auth handlers ─────────────────────────────────────────────────────────────
   async function handleLogin(username, password) {
     const ok = await login(username, password);
-    if (ok) {
-      setShowLogin(false);
-      push("Sesión iniciada como administrador", "success");
-    }
+    if (ok) push("Sesión iniciada como administrador", "success");
+    return ok;
   }
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     push("Sesión cerrada", "info");
   }
 
@@ -220,7 +236,7 @@ export default function App() {
     fetchAllProducts(0, false);
   }
 
-  // ── Handlers: tiendas ──────────────────────────────────────────────────────
+  // ── Handlers: tiendas ────────────────────────────────────────────────────────
   async function handleAddStore(form) {
     setAddingStore(true);
     try {
@@ -326,61 +342,38 @@ export default function App() {
     }
   }
 
-  /**
-   * Re-clasificar todo:
-   * 1. Llama a /enrich/reset para resetear todos los flags
-   * 2. Luego llama a /enrich?batch_size=50 en loop hasta que no haya más pendientes
-   *    (o el usuario puede llamarlo manualmente varias veces con el botón Enriquecer)
-   */
-  async function handleReclassifyAll() {
-    if (!confirm(
-      "¿Re-clasificar TODOS los productos desde cero?\n\n" +
-      "Esto reseteará la clasificación actual y la volverá a correr con el prompt actualizado. " +
-      "Puede tardar bastante dependiendo de la cantidad de productos."
-    )) return;
-
-    setReclassifying(true);
-    try {
-      // Paso 1: reset de todos los flags
-      const resetResult = await api.post("/enrich/reset", {});
-      const resetCount = resetResult.reset_count ?? 0;
-      push(`✓ ${resetCount} productos marcados para re-clasificación`, "info");
-
-      // Paso 2: primer batch de 50
-      const result = await api.post("/enrich?batch_size=50", {});
-      setEnrichStatus(result.status);
-      setByStore(result.status?.by_store || []);
-
-      const n = result.enriched_this_run ?? 0;
-      const pending = result.status?.pending ?? 0;
-
-      push(
-        pending > 0
-          ? `↺ ${n} re-clasificados — quedan ${pending} pendientes. Seguí apretando "Enriquecer ahora".`
-          : `✓ Re-clasificación completa (${n} procesados)`,
-        "success",
-      );
-      bumpVersion();
-    } catch (e) {
-      push(`Error en re-clasificación: ${e.message}`, "error");
-    } finally {
-      setReclassifying(false);
-    }
+  function isRecent(date) {
+    return (Date.now() - new Date(date).getTime()) / 1000 / 3600 < 48;
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  const storesWithError = byStore.filter(
+    (s) =>
+      s.last_scrape !== null &&
+      s.last_scrape?.success === false &&
+      isRecent(s.last_scrape?.started_at),
+  );
+
+  // ── Early return: ruta admin secreta ─────────────────────────────────────────
+  if (isAdminRoute) {
+    return (
+      <>
+        <Toast toasts={toasts} />
+        <AdminView
+          isAdmin={isAdmin}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          loginLoading={loginLoading}
+          loginError={loginError}
+          onClearError={() => setError("")}
+        />
+      </>
+    );
+  }
+
+  // ── Render público — sin ninguna referencia a admin ───────────────────────────
   return (
     <>
       <Toast toasts={toasts} />
-
-      {showLogin && (
-        <LoginModal
-          onLogin={handleLogin}
-          loading={loginLoading}
-          error={loginError}
-          onClearError={() => setError("")}
-        />
-      )}
 
       <div className="app">
         <nav>
@@ -403,24 +396,6 @@ export default function App() {
               </button>
             ))}
           </div>
-
-          {isAdmin ? (
-            <button
-              className="btn-admin-logout"
-              onClick={handleLogout}
-              title="Cerrar sesión admin"
-            >
-              ⬡ Admin{" "}
-              <span style={{ fontSize: "0.7rem", opacity: 0.6 }}>✕</span>
-            </button>
-          ) : (
-            <button
-              className="btn-admin-login"
-              onClick={() => setShowLogin(true)}
-            >
-              Administrador
-            </button>
-          )}
         </nav>
 
         <main>
@@ -461,7 +436,7 @@ export default function App() {
               addingStore={addingStore}
               showAddStore={showAddStore}
               setShowAddStore={setShowAddStore}
-              isAdmin={isAdmin}
+              isAdmin={false}
               onRefresh={fetchStores}
               onScrapeStore={handleScrapeStore}
               onScrapeAll={handleScrapeAll}
@@ -469,8 +444,7 @@ export default function App() {
               onEnrichStore={handleEnrichStore}
               onDeleteStore={handleDeleteStore}
               onAddStore={handleAddStore}
-              onReclassifyAll={handleReclassifyAll}
-              reclassifying={reclassifying}
+              storesWithError={storesWithError}
             />
           )}
 
