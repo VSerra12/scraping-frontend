@@ -8,7 +8,7 @@ import { SearchView } from "./views/SearchView";
 import { StoresView } from "./views/StoresView";
 import { StatsView } from "./views/StatsView";
 import Logo from '/src/assets/scrapeando_isologo.svg';
-import "./App.css";
+import "./app.css";
 
 export default function App() {
   const [view, setView] = useState("search");
