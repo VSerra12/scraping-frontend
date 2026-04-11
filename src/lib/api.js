@@ -34,6 +34,7 @@ export const api = {
   async get(path) {
     const res = await fetch(`${API_BASE}${path}`, {
       headers: baseHeaders(),
+      credentials: "include",
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
@@ -56,6 +57,16 @@ export const api = {
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     if (res.status === 204) return null;
+    return res.json();
+  },
+  async patch(path, body = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "PATCH",
+      headers: baseHeaders(),
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
   },
 };
