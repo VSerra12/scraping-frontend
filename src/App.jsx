@@ -53,6 +53,8 @@ export default function App() {
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [reEnriching, setReEnriching] = useState(false);
+  const [reEnrichingStore, setReEnrichingStore] = useState(null);
 
   // ── Estado: tiendas ─────────────────────────────────────────────────────────
   const [stores, setStores] = useState([]);
@@ -375,6 +377,48 @@ export default function App() {
     }
   }
 
+  async function handleReEnrich() {
+    setReEnriching(true);
+    try {
+      const result = await api.post("/enrich?batch_size=50&force=true", {});
+      setEnrichStatus(result.status);
+      setByStore(result.status?.by_store || []);
+      const n = result.enriched_this_run ?? 0;
+      push(
+        n > 0
+          ? `↺ ${n} productos re-clasificados`
+          : "↺ No hubo productos para re-clasificar en este batch",
+        "success",
+      );
+      bumpVersion();
+    } catch (e) {
+      push(`Error re-enriqueciendo: ${e.message}`, "error");
+    } finally {
+      setReEnriching(false);
+    }
+  }
+ 
+  async function handleReEnrichStore(storeId) {
+    setReEnrichingStore(storeId);
+    try {
+      const result = await api.post(`/enrich/${storeId}?batch_size=50&force=true`, {});
+      setEnrichStatus(result.status);
+      setByStore(result.status?.by_store || []);
+      const n = result.enriched_this_run ?? 0;
+      push(
+        n > 0
+          ? `↺ ${n} productos de la tienda re-clasificados`
+          : "↺ No hubo productos para re-clasificar",
+        "success",
+      );
+      bumpVersion();
+    } catch (e) {
+      push(`Error: ${e.message}`, "error");
+    } finally {
+      setReEnrichingStore(null);
+    }
+  }
+
   function isRecent(date) {
     return (Date.now() - new Date(date).getTime()) / 1000 / 3600 < 48;
   }
@@ -494,6 +538,10 @@ export default function App() {
               onDeleteStore={handleDeleteStore}
               onAddStore={handleAddStore}
               storesWithError={storesWithError}
+              onReEnrich={handleReEnrich}
+              onReEnrichStore={handleReEnrichStore}
+              reEnriching={reEnriching}
+              reEnrichingStore={reEnrichingStore}
             />
           )}
 

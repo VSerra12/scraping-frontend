@@ -1,7 +1,5 @@
 import { StoreRow } from "../components/StoreRow";
 import { AddStoreModal } from "../components/AddStoreModal";
-import { ErrorModal } from "../components/ErrorModal";
-import { useState } from "react";
 
 export function StoresView({
   stores,
@@ -23,22 +21,17 @@ export function StoresView({
   onEnrichStore,
   onDeleteStore,
   onAddStore,
-  storesWithError,
+  // nuevas props para force re-enrich
+  onReEnrich,
+  onReEnrichStore,
+  reEnriching,
+  reEnrichingStore,
 }) {
   const activeStores = stores.filter((s) => s.active);
-  const [showErrorModal, setShowErrorModal] = useState(false);
 
   return (
     <>
       <div className="section-header">
-        {storesWithError.length > 0 && (
-          <div className="storeWithErrors">
-            <span>{storesWithError.length} tiendas con error</span>
-            <button onClick={() => setShowErrorModal(true)}>
-              Ver tiendas con error
-            </button>
-          </div>
-        )}
         <h2 className="section-title">Tiendas</h2>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           <button
@@ -49,10 +42,7 @@ export function StoresView({
             {loadingStores ? "⏳" : "⟳ Actualizar"}
           </button>
           {isAdmin && (
-            <button
-              className="btn primary"
-              onClick={() => setShowAddStore(true)}
-            >
+            <button className="btn primary" onClick={() => setShowAddStore(true)}>
               + Agregar tienda
             </button>
           )}
@@ -82,8 +72,10 @@ export function StoresView({
               onScrape={onScrapeStore}
               onDelete={onDeleteStore}
               onEnrich={onEnrichStore}
+              onReEnrich={onReEnrichStore}
               scraping={scrapingStore}
               enrichingStore={enrichingStore}
+              reEnrichingStore={reEnrichingStore}
               storeStatus={byStore.find((b) => b.store_id === s.id)}
               isAdmin={isAdmin}
             />
@@ -109,24 +101,24 @@ export function StoresView({
             </div>
           )}
 
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              justifyContent: "flex-end",
-            }}
-          >
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+            {/* Re-enriquecer todo (force) */}
+            <button
+              className="btn secondary"
+              onClick={onReEnrich}
+              disabled={reEnriching || enriching}
+              title="Re-clasifica productos ya procesados (prioriza los con categoría 'otro')"
+              style={{ borderColor: "var(--indigo-border)", color: "var(--indigo)" }}
+            >
+              {reEnriching ? "⏳ Re-clasificando…" : "↺ Re-enriquecer todo"}
+            </button>
+
+            {/* Enriquecer pendientes */}
             <button
               className="btn secondary"
               onClick={onEnrich}
-              disabled={
-                enriching || !enrichStatus || enrichStatus.pending === 0
-              }
-              title={
-                enrichStatus?.pending === 0
-                  ? "No hay pendientes"
-                  : "Clasificar hasta 50 productos"
-              }
+              disabled={enriching || reEnriching || !enrichStatus || enrichStatus.pending === 0}
+              title={enrichStatus?.pending === 0 ? "No hay pendientes" : "Clasificar hasta 50 productos nuevos"}
             >
               {enriching
                 ? "⏳ Clasificando…"
@@ -138,26 +130,21 @@ export function StoresView({
               onClick={onScrapeAll}
               disabled={scrapingAll}
             >
-              {scrapingAll
-                ? "⏳ Scrapeando todas…"
-                : "⟳ Scrapear todas las tiendas activas"}
+              {scrapingAll ? "⏳ Scrapeando todas…" : "⟳ Scrapear todas las tiendas activas"}
             </button>
           </div>
         </div>
       )}
 
-      {/* Si no es admin, mostrar el banner de progreso de forma informativa */}
+      {/* Banner de progreso para no-admin */}
       {!isAdmin && enrichStatus && enrichStatus.pending > 0 && (
         <div className="enrich-banner" style={{ marginTop: "1rem" }}>
           <span>
-            ⏳ <strong>{enrichStatus.pending}</strong> productos pendientes de
-            clasificación ({enrichStatus.percent}% listo)
+            ⏳ <strong>{enrichStatus.pending}</strong> productos pendientes de clasificación
+            ({enrichStatus.percent}% listo)
           </span>
           <div className="enrich-bar">
-            <div
-              className="enrich-bar-fill"
-              style={{ width: `${enrichStatus.percent}%` }}
-            />
+            <div className="enrich-bar-fill" style={{ width: `${enrichStatus.percent}%` }} />
           </div>
         </div>
       )}
@@ -167,13 +154,6 @@ export function StoresView({
           onClose={() => setShowAddStore(false)}
           onAdd={onAddStore}
           loading={addingStore}
-        />
-      )}
-
-      {showErrorModal && (
-        <ErrorModal
-          stores={storesWithError}
-          onClose={() => setShowErrorModal(false)}
         />
       )}
     </>
