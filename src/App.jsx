@@ -74,6 +74,15 @@ export default function App() {
   const [dataVersion, setDataVersion] = useState(0);
   const bumpVersion = useCallback(() => setDataVersion((v) => v + 1), []);
 
+  // ── Log de operaciones admin ─────────────────────────────────────────────────
+  const [adminLog, setAdminLog] = useState([]);
+  const addLog = useCallback((msg, type = "info") => {
+    const time = new Date().toLocaleTimeString("es-AR", {
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+    setAdminLog((prev) => [{ id: Date.now(), time, msg, type }, ...prev].slice(0, 100));
+  }, []);
+
   // ── Fetchers ────────────────────────────────────────────────────────────────
   const fetchStores = useCallback(async () => {
     setLoadingStores(true);
@@ -273,6 +282,8 @@ export default function App() {
   }
 
   async function handleScrapeStore(id) {
+    const store = stores.find((s) => s.id === id);
+    addLog(`Iniciando scraping de "${store?.name}"…`);
     setScrapingStore(id);
     try {
       const result = await api.post(`/scrape/${id}`, {});
@@ -282,9 +293,11 @@ export default function App() {
         ),
       );
       const count = result.new_products ?? result.products_scraped ?? result.count ?? "?";
+      addLog(`"${store?.name}": ${count} productos nuevos`, "success");
       push(`Scraping completo — ${count} productos nuevos`, "success");
       bumpVersion();
     } catch (e) {
+      addLog(`Error scrapeando "${store?.name}": ${e.message}`, "error");
       push(`Error scrapeando: ${e.message}`, "error");
     } finally {
       setScrapingStore(null);
@@ -292,15 +305,18 @@ export default function App() {
   }
 
   async function handleScrapeAll() {
+    addLog("Iniciando scraping de todas las tiendas activas…");
     setScrapingAll(true);
     try {
       const result = await api.post("/scrape-all", {});
       const now = new Date().toISOString();
       setStores((s) => s.map((st) => (st.active ? { ...st, last_scraped: now } : st)));
       const count = result.total_products ?? result.count ?? "?";
+      addLog(`Scraping completo — ${count} productos totales`, "success");
       push(`Scraping completo — ${count} productos totales`, "success");
       bumpVersion();
     } catch (e) {
+      addLog(`Error en scraping: ${e.message}`, "error");
       push(`Error en scraping: ${e.message}`, "error");
     } finally {
       setScrapingAll(false);
@@ -308,6 +324,7 @@ export default function App() {
   }
 
   async function handleEnrich() {
+    addLog("Enriqueciendo batch global (50 productos)…");
     setEnriching(true);
     try {
       const result = await api.post("/enrich?batch_size=50", {});
@@ -321,8 +338,10 @@ export default function App() {
           : `✓ Todo clasificado (${n} procesados)`,
         "success",
       );
+      addLog(pending > 0 ? `${n} clasificados — ${pending} pendientes` : `Todo clasificado (${n} procesados)`, "success");
       bumpVersion();
     } catch (e) {
+      addLog(`Error enriqueciendo: ${e.message}`, "error");
       push(`Error enriqueciendo: ${e.message}`, "error");
     } finally {
       setEnriching(false);
@@ -330,6 +349,8 @@ export default function App() {
   }
 
   async function handleEnrichStore(storeId) {
+    const store = stores.find((s) => s.id === storeId);
+    addLog(`Enriqueciendo "${store?.name}"…`);
     setEnrichingStore(storeId);
     try {
       const result = await api.post(`/enrich/${storeId}?batch_size=50`, {});
@@ -344,8 +365,10 @@ export default function App() {
           : `✓ Tienda completamente clasificada (${n} procesados)`,
         "success",
       );
+      addLog(`"${store?.name}": ${n} clasificados — ${pending} pendientes`, "success");
       bumpVersion();
     } catch (e) {
+      addLog(`Error enriqueciendo "${store?.name}": ${e.message}`, "error");
       push(`Error: ${e.message}`, "error");
     } finally {
       setEnrichingStore(null);
@@ -400,6 +423,7 @@ export default function App() {
               ["search", "Buscar"],
               ["stores", "Tiendas"],
               ["stats", "Stats"],
+              ...(effectiveIsAdmin ? [["log", `Log${adminLog.length > 0 ? ` (${adminLog.length})` : ""}`]] : []),
             ].map(([id, label]) => (
               <button
                 key={id}
@@ -481,6 +505,35 @@ export default function App() {
               isAdmin={effectiveIsAdmin}
               aiStats={aiStats}
             />
+          )}
+
+          {view === "log" && effectiveIsAdmin && (
+            <div>
+              <div className="section-header">
+                <h2 className="section-title">Log de operaciones</h2>
+                <button className="btn secondary" onClick={() => setAdminLog([])}>
+                  Limpiar
+                </button>
+              </div>
+              {adminLog.length === 0 ? (
+                <div className="state-box">
+                  <div className="emoji">📋</div>
+                  <p>Sin operaciones registradas todavía.</p>
+                </div>
+              ) : (
+                <div className="admin-log">
+                  {adminLog.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className={`admin-log-entry ${entry.type === "error" ? "log-error" : entry.type === "success" ? "log-success" : ""}`}
+                    >
+                      <span className="log-time">{entry.time}</span>
+                      <span className="log-msg">{entry.msg}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </main>
       </div>
