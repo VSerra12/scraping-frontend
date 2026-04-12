@@ -69,6 +69,7 @@ export default function App() {
   // ── Estado: stats ───────────────────────────────────────────────────────────
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [aiStats, setAiStats] = useState(null);
 
   const [dataVersion, setDataVersion] = useState(0);
   const bumpVersion = useCallback(() => setDataVersion((v) => v + 1), []);
@@ -108,6 +109,15 @@ export default function App() {
     }
   }, [push]);
 
+  const fetchAiStats = useCallback(async () => {
+    try {
+      const data = await api.get("/ai/stats");
+      setAiStats(data);
+    } catch {
+      // silencioso — no es crítico
+    }
+  }, []);
+
   const fetchAllProducts = useCallback(
     async (currentOffset = 0, append = false) => {
       currentOffset === 0 ? setLoadingAll(true) : setLoadingMore(true);
@@ -135,7 +145,7 @@ export default function App() {
   useEffect(() => { checkSession(); }, []);
   useEffect(() => { fetchStores(); }, []);
   useEffect(() => { if (view === "stores") fetchStores(); }, [view]);
-  useEffect(() => { if (view === "stats") fetchStats(); }, [view]);
+  useEffect(() => { if (view === "stats") { fetchStats(); if (isAdminRoute && isAdmin) fetchAiStats(); } }, [view, isAdmin]);
   useEffect(() => { if (view === "search" && !searched) fetchAllProducts(0, false); }, [view]);
 
   useEffect(() => {
@@ -353,13 +363,18 @@ export default function App() {
       isRecent(s.last_scrape?.started_at),
   );
 
-  // ── Early return: ruta admin secreta ─────────────────────────────────────────
-  if (isAdminRoute) {
+  // ── Render — la ruta secreta muestra la misma UI pero con login admin ─────────
+  //    En ruta pública: isAdmin siempre false (no se expone el estado de sesión)
+  //    En ruta secreta: isAdmin real + formulario de login si no autenticado
+  const effectiveIsAdmin = isAdminRoute && isAdmin;
+
+  // Si llegó a la ruta secreta pero aún no inició sesión, mostrar login primero
+  if (isAdminRoute && !isAdmin) {
     return (
       <>
         <Toast toasts={toasts} />
         <AdminView
-          isAdmin={isAdmin}
+          isAdmin={false}
           onLogin={handleLogin}
           onLogout={handleLogout}
           loginLoading={loginLoading}
@@ -370,7 +385,6 @@ export default function App() {
     );
   }
 
-  // ── Render público — sin ninguna referencia a admin ───────────────────────────
   return (
     <>
       <Toast toasts={toasts} />
@@ -396,6 +410,17 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* Indicador de sesión admin — solo visible en ruta secreta */}
+          {isAdminRoute && effectiveIsAdmin && (
+            <button
+              className="btn secondary"
+              style={{ marginLeft: "auto", fontSize: "0.75rem" }}
+              onClick={handleLogout}
+            >
+              Cerrar sesión admin
+            </button>
+          )}
         </nav>
 
         <main>
@@ -436,7 +461,7 @@ export default function App() {
               addingStore={addingStore}
               showAddStore={showAddStore}
               setShowAddStore={setShowAddStore}
-              isAdmin={false}
+              isAdmin={effectiveIsAdmin}
               onRefresh={fetchStores}
               onScrapeStore={handleScrapeStore}
               onScrapeAll={handleScrapeAll}
@@ -453,6 +478,8 @@ export default function App() {
               stats={stats}
               loadingStats={loadingStats}
               onRefresh={fetchStats}
+              isAdmin={effectiveIsAdmin}
+              aiStats={aiStats}
             />
           )}
         </main>

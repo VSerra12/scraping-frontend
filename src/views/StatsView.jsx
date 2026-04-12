@@ -1,6 +1,6 @@
 import { timeAgo } from "../lib/api";
 
-export function StatsView({ stats, loadingStats, onRefresh }) {
+export function StatsView({ stats, loadingStats, onRefresh, isAdmin, aiStats }) {
   return (
     <>
       <div className="section-header">
@@ -83,6 +83,29 @@ export function StatsView({ stats, loadingStats, onRefresh }) {
             <span className="stat-sub">tienda más reciente</span>
           </div>
 
+        </div>
+      )}
+
+      {/* Bloque de costo IA — solo visible para admin autenticado */}
+      {!loadingStats && isAdmin && aiStats && (
+        <div className="stat-card" style={{ marginTop: "1.5rem", display: "block" }}>
+          <span className="stat-label">Costo estimado para clasificar pendientes</span>
+          {aiStats.cost_estimate_pending ? (
+            <>
+              <div style={{ fontSize: "1.15rem", fontWeight: 700, margin: "0.5rem 0 0.25rem", color: "var(--fg)" }}>
+                USD {aiStats.cost_estimate_pending.estimated_cost_usd}
+                {" · "}
+                ARS {aiStats.cost_estimate_pending.estimated_cost_ars?.toLocaleString("es-AR")}
+              </div>
+              <span className="stat-sub">
+                {aiStats.cost_estimate_pending.product_count} productos × ~$0.0005
+              </span>
+            </>
+          ) : (
+            <span className="stat-sub" style={{ marginTop: "0.5rem", display: "block" }}>
+              {aiStats.pending === 0 ? "✓ Todo clasificado, sin costo pendiente" : "Sin estimado disponible"}
+            </span>
+          )}
         </div>
       )}
 

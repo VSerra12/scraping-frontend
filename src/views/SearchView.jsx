@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { ProductCard } from "../components/ProductCard";
 
 const CATEGORIES = [
@@ -38,8 +38,28 @@ export function SearchView({
   onClear,
 }) {
   const inputRef = useRef();
+  const dropdownRef = useRef();
   const activeStores = stores.filter((s) => s.active);
   const isLoading = loadingSearch || loadingAll;
+
+  const [storeOpen, setStoreOpen] = useState(false);
+  const [storeSearch, setStoreSearch] = useState("");
+
+  const filteredStores = activeStores.filter((s) =>
+    s.name.toLowerCase().includes(storeSearch.toLowerCase())
+  );
+
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setStoreOpen(false);
+        setStoreSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Dispara búsqueda automática al tocar una tienda del sidebar,
   // pero no en el montaje inicial (mounted ref lo evita).
@@ -51,31 +71,6 @@ export function SearchView({
 
   return (
     <div className="search-layout">
-
-      {/* ── Sidebar de tiendas ── */}
-      <aside className="store-sidebar">
-        <p className="sidebar-title">TIENDAS</p>
-        {activeStores.map((s) => (
-          <button
-            key={s.id}
-            className={`sidebar-store-btn ${selectedStores.includes(s.id) ? "selected" : ""}`}
-            onClick={() => toggleStore(s.id)}
-          >
-            <span className="sidebar-store-name">{s.name}</span>
-            {selectedStores.includes(s.id) && (
-              <span className="sidebar-check">✓</span>
-            )}
-          </button>
-        ))}
-        {selectedStores.length > 0 && (
-          <button
-            className="sidebar-clear"
-            onClick={() => setSelectedStores([])}
-          >
-            Limpiar
-          </button>
-        )}
-      </aside>
 
       {/* ── Área principal ── */}
       <div className="search-main">
@@ -167,6 +162,78 @@ export function SearchView({
             </div>
           )}
         </div>
+
+        {/* ── Selector de tiendas con dropdown ── */}
+        {activeStores.length > 0 && (
+          <div className="store-bar">
+            <div className="store-dropdown" ref={dropdownRef}>
+              <button
+                className={`store-dropdown-trigger ${storeOpen ? "open" : ""}`}
+                onClick={() => { setStoreOpen((o) => !o); setStoreSearch(""); }}
+              >
+                <span>
+                  {selectedStores.length === 0
+                    ? "Todas las tiendas"
+                    : selectedStores.length === 1
+                    ? activeStores.find((s) => s.id === selectedStores[0])?.name
+                    : `${selectedStores.length} tiendas`}
+                </span>
+                <span className="store-dropdown-arrow">{storeOpen ? "▲" : "▼"}</span>
+              </button>
+
+              {storeOpen && (
+                <div className="store-dropdown-menu">
+                  <div className="store-dropdown-search">
+                    <input
+                      autoFocus
+                      className="store-search-input"
+                      placeholder="Buscar tienda…"
+                      value={storeSearch}
+                      onChange={(e) => setStoreSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="store-dropdown-list">
+                    {filteredStores.length === 0 && (
+                      <div className="store-dropdown-empty">Sin resultados</div>
+                    )}
+                    {filteredStores.map((s) => (
+                      <button
+                        key={s.id}
+                        className={`store-dropdown-item ${selectedStores.includes(s.id) ? "selected" : ""}`}
+                        onClick={() => toggleStore(s.id)}
+                      >
+                        <span>{s.name}</span>
+                        {selectedStores.includes(s.id) && <span className="sidebar-check">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedStores.length > 0 && (
+                    <div className="store-dropdown-footer">
+                      <button
+                        className="store-dropdown-clear"
+                        onClick={() => { setSelectedStores([]); setStoreOpen(false); }}
+                      >
+                        Limpiar selección
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Chips de tiendas seleccionadas */}
+            {selectedStores.map((id) => {
+              const s = activeStores.find((s) => s.id === id);
+              if (!s) return null;
+              return (
+                <span key={id} className="store-chip">
+                  {s.name}
+                  <button className="store-chip-remove" onClick={() => toggleStore(id)}>×</button>
+                </span>
+              );
+            })}
+          </div>
+        )}
 
         {/* Loading */}
         {isLoading && (
