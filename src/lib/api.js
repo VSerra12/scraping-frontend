@@ -1,6 +1,5 @@
 export const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 export const PAGE_SIZE = 50;
-
 export const CATEGORIES = [
   "", "remera", "buzo", "campera", "pantalón", "zapatillas",
   "vestido", "falda", "bermuda",
@@ -12,22 +11,33 @@ export const COLORS = [
 export const GENDERS = ["", "hombre", "mujer", "unisex"];
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-// Con httpOnly cookie ya no manejamos el token en JS.
-// isAdmin() lo determina el resultado de /auth/me al cargar la app.
+// El token se guarda en localStorage y se envía en el header Authorization.
+// La httpOnly cookie se sigue seteando como fallback desde el backend,
+// pero en producción cross-site Chrome la bloquea → usamos Bearer token.
+const TOKEN_KEY = "admin_token";
 let _isAdmin = false;
 
 export const auth = {
   setAdmin(val) { _isAdmin = val; },
-  clearAdmin()  { _isAdmin = false; },
+  clearAdmin()  {
+    _isAdmin = false;
+    localStorage.removeItem(TOKEN_KEY);
+  },
   isAdmin()     { return _isAdmin; },
+  setToken(t)   { localStorage.setItem(TOKEN_KEY, t); },
+  getToken()    { return localStorage.getItem(TOKEN_KEY); },
 };
 
 // ─── Cliente HTTP ─────────────────────────────────────────────────────────────
-// credentials: "include" es lo que hace que el navegador envíe la cookie
-// automáticamente en cada request. Sin esto, la cookie no se manda.
-
+// Envía el token JWT en el header Authorization: Bearer <token>.
+// credentials: "include" se mantiene como fallback para la cookie.
 function baseHeaders() {
-  return { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json" };
+  const token = auth.getToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 export const api = {
@@ -43,7 +53,7 @@ export const api = {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: baseHeaders(),
-      credentials: "include",   // ← envía la httpOnly cookie
+      credentials: "include",
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -53,7 +63,7 @@ export const api = {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "DELETE",
       headers: baseHeaders(),
-      credentials: "include",   // ← envía la httpOnly cookie
+      credentials: "include",
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     if (res.status === 204) return null;
