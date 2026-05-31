@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { timeAgo } from "../lib/api";
 import { StoreProductsPanel } from "./StoreProductsPanel";
+import { EditStoreModal } from "./EditStoreModal";
 
 export function StoreRow({
   store,
@@ -8,27 +9,37 @@ export function StoreRow({
   onDelete,
   onEnrich,
   onReEnrich,
+  onEdit,           // nueva prop: (storeId, formData) => void
   scraping,
   enrichingStore,
   reEnrichingStore,
+  editingStore,     // nueva prop: id de la tienda que se está guardando
   storeStatus,
   isAdmin,
 }) {
-  const [showPanel, setShowPanel] = useState(false);
+  const [showPanel, setShowPanel]   = useState(false);
+  const [showEdit,  setShowEdit]    = useState(false);
 
   const pct        = storeStatus?.percent    ?? null;
   const pending    = storeStatus?.pending    ?? null;
   const total      = storeStatus?.total      ?? null;
   const classified = storeStatus?.classified ?? null;
 
-  const isEnriching   = enrichingStore === store.id;
+  const isEnriching   = enrichingStore  === store.id;
   const isReEnriching = reEnrichingStore === store.id;
-  const isScraping    = scraping === store.id;
-  const isBusy        = isEnriching || isReEnriching || isScraping;
+  const isScraping    = scraping        === store.id;
+  const isEditing     = editingStore    === store.id;
+  const isBusy        = isEnriching || isReEnriching || isScraping || isEditing;
+
+  async function handleSave(storeId, formData) {
+    await onEdit(storeId, formData);
+    setShowEdit(false);
+  }
 
   return (
     <div>
-      <div className={`store-row ${!store.active ? "inactive" : ""}`}
+      <div
+        className={`store-row ${!store.active ? "inactive" : ""}`}
         style={{ borderRadius: showPanel ? "10px 10px 0 0" : undefined }}
       >
         <div className="store-info">
@@ -73,6 +84,20 @@ export function StoreRow({
                   ☰
                 </button>
               )}
+
+              {/* ✎ Editar tienda */}
+              <button
+                className="btn-icon"
+                onClick={() => setShowEdit(true)}
+                disabled={isBusy}
+                title="Editar datos de la tienda"
+                style={{
+                  borderColor: showEdit ? "var(--coral)" : "var(--coral-border)",
+                  color:       showEdit ? "var(--coral)" : "var(--muted)",
+                }}
+              >
+                ✎
+              </button>
 
               {/* ↺ Re-enriquecer toda la tienda (batch) */}
               {total > 0 && (
@@ -129,6 +154,16 @@ export function StoreRow({
         <StoreProductsPanel
           store={store}
           onClose={() => setShowPanel(false)}
+        />
+      )}
+
+      {/* Modal de edición */}
+      {showEdit && (
+        <EditStoreModal
+          store={store}
+          onClose={() => setShowEdit(false)}
+          onSave={handleSave}
+          loading={isEditing}
         />
       )}
     </div>

@@ -26,6 +26,8 @@ export function StoresView({
   onReEnrichStore,
   reEnriching,
   reEnrichingStore,
+  onEdit,
+  editingStore,
 }) {
   const activeStores = stores.filter((s) => s.active);
 
@@ -42,7 +44,10 @@ export function StoresView({
             {loadingStores ? "⏳" : "⟳ Actualizar"}
           </button>
           {isAdmin && (
-            <button className="btn primary" onClick={() => setShowAddStore(true)}>
+            <button
+              className="btn primary"
+              onClick={() => setShowAddStore(true)}
+            >
               + Agregar tienda
             </button>
           )}
@@ -73,9 +78,11 @@ export function StoresView({
               onDelete={onDeleteStore}
               onEnrich={onEnrichStore}
               onReEnrich={onReEnrichStore}
+              onEdit={onEdit} // ← nuevo
               scraping={scrapingStore}
               enrichingStore={enrichingStore}
               reEnrichingStore={reEnrichingStore}
+              editingStore={editingStore} // ← nuevo
               storeStatus={byStore.find((b) => b.store_id === s.id)}
               isAdmin={isAdmin}
             />
@@ -101,14 +108,24 @@ export function StoresView({
             </div>
           )}
 
-          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              justifyContent: "flex-end",
+              flexWrap: "wrap",
+            }}
+          >
             {/* Re-enriquecer todo (force) */}
             <button
               className="btn secondary"
               onClick={onReEnrich}
               disabled={reEnriching || enriching}
               title="Re-clasifica productos ya procesados (prioriza los con categoría 'otro')"
-              style={{ borderColor: "var(--indigo-border)", color: "var(--indigo)" }}
+              style={{
+                borderColor: "var(--indigo-border)",
+                color: "var(--indigo)",
+              }}
             >
               {reEnriching ? "⏳ Re-clasificando…" : "↺ Re-enriquecer todo"}
             </button>
@@ -117,8 +134,17 @@ export function StoresView({
             <button
               className="btn secondary"
               onClick={onEnrich}
-              disabled={enriching || reEnriching || !enrichStatus || enrichStatus.pending === 0}
-              title={enrichStatus?.pending === 0 ? "No hay pendientes" : "Clasificar hasta 50 productos nuevos"}
+              disabled={
+                enriching ||
+                reEnriching ||
+                !enrichStatus ||
+                enrichStatus.pending === 0
+              }
+              title={
+                enrichStatus?.pending === 0
+                  ? "No hay pendientes"
+                  : "Clasificar hasta 50 productos nuevos"
+              }
             >
               {enriching
                 ? "⏳ Clasificando…"
@@ -130,7 +156,9 @@ export function StoresView({
               onClick={onScrapeAll}
               disabled={scrapingAll}
             >
-              {scrapingAll ? "⏳ Scrapeando todas…" : "⟳ Scrapear todas las tiendas activas"}
+              {scrapingAll
+                ? "⏳ Scrapeando todas…"
+                : "⟳ Scrapear todas las tiendas activas"}
             </button>
           </div>
         </div>
@@ -140,11 +168,14 @@ export function StoresView({
       {!isAdmin && enrichStatus && enrichStatus.pending > 0 && (
         <div className="enrich-banner" style={{ marginTop: "1rem" }}>
           <span>
-            ⏳ <strong>{enrichStatus.pending}</strong> productos pendientes de clasificación
-            ({enrichStatus.percent}% listo)
+            ⏳ <strong>{enrichStatus.pending}</strong> productos pendientes de
+            clasificación ({enrichStatus.percent}% listo)
           </span>
           <div className="enrich-bar">
-            <div className="enrich-bar-fill" style={{ width: `${enrichStatus.percent}%` }} />
+            <div
+              className="enrich-bar-fill"
+              style={{ width: `${enrichStatus.percent}%` }}
+            />
           </div>
         </div>
       )}

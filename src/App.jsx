@@ -76,13 +76,20 @@ export default function App() {
   const [dataVersion, setDataVersion] = useState(0);
   const bumpVersion = useCallback(() => setDataVersion((v) => v + 1), []);
 
+  // Estado (junto a los otros estados de tiendas):
+  const [editingStore, setEditingStore] = useState(null); // id de la tienda que se está guardando
+
   // ── Log de operaciones admin ─────────────────────────────────────────────────
   const [adminLog, setAdminLog] = useState([]);
   const addLog = useCallback((msg, type = "info") => {
     const time = new Date().toLocaleTimeString("es-AR", {
-      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
     });
-    setAdminLog((prev) => [{ id: Date.now(), time, msg, type }, ...prev].slice(0, 100));
+    setAdminLog((prev) =>
+      [{ id: Date.now(), time, msg, type }, ...prev].slice(0, 100),
+    );
   }, []);
 
   // ── Fetchers ────────────────────────────────────────────────────────────────
@@ -153,11 +160,24 @@ export default function App() {
   );
 
   // ── Efectos ──────────────────────────────────────────────────────────────────
-  useEffect(() => { checkSession(); }, []);
-  useEffect(() => { fetchStores(); }, []);
-  useEffect(() => { if (view === "stores") fetchStores(); }, [view]);
-  useEffect(() => { if (view === "stats") { fetchStats(); if (isAdminRoute && isAdmin) fetchAiStats(); } }, [view, isAdmin]);
-  useEffect(() => { if (view === "search" && !searched) fetchAllProducts(0, false); }, [view]);
+  useEffect(() => {
+    checkSession();
+  }, []);
+  useEffect(() => {
+    fetchStores();
+  }, []);
+  useEffect(() => {
+    if (view === "stores") fetchStores();
+  }, [view]);
+  useEffect(() => {
+    if (view === "stats") {
+      fetchStats();
+      if (isAdminRoute && isAdmin) fetchAiStats();
+    }
+  }, [view, isAdmin]);
+  useEffect(() => {
+    if (view === "search" && !searched) fetchAllProducts(0, false);
+  }, [view]);
 
   useEffect(() => {
     if (dataVersion === 0) return;
@@ -182,6 +202,28 @@ export default function App() {
   async function handleLogout() {
     await logout();
     push("Sesión cerrada", "info");
+  }
+
+  // Handler:
+  async function handleEditStore(storeId, formData) {
+    setEditingStore(storeId);
+    try {
+      const updated = await api.patch(`/stores/${storeId}`, formData);
+      setStores((s) =>
+        s.map((st) => (st.id === storeId ? { ...st, ...updated } : st)),
+      );
+      push(`Tienda "${updated.name}" actualizada`, "success");
+      addLog(`"${updated.name}" — datos actualizados`, "success");
+    } catch (e) {
+      const msg = e.message.includes("409")
+        ? "Ya existe una tienda con ese nombre o URL"
+        : `Error actualizando tienda: ${e.message}`;
+      push(msg, "error");
+      addLog(msg, "error");
+      throw e; // re-lanzar para que EditStoreModal no cierre el modal
+    } finally {
+      setEditingStore(null);
+    }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -252,7 +294,13 @@ export default function App() {
     setQuery("");
     setSearched(false);
     setOffset(0);
-    setFilters({ category: "", color: "", gender: "", min_price: "", max_price: "" });
+    setFilters({
+      category: "",
+      color: "",
+      gender: "",
+      min_price: "",
+      max_price: "",
+    });
     setSelectedStores([]);
     fetchAllProducts(0, false);
   }
@@ -294,7 +342,8 @@ export default function App() {
           st.id === id ? { ...st, last_scraped: new Date().toISOString() } : st,
         ),
       );
-      const count = result.new_products ?? result.products_scraped ?? result.count ?? "?";
+      const count =
+        result.new_products ?? result.products_scraped ?? result.count ?? "?";
       addLog(`"${store?.name}": ${count} productos nuevos`, "success");
       push(`Scraping completo — ${count} productos nuevos`, "success");
       bumpVersion();
@@ -312,7 +361,9 @@ export default function App() {
     try {
       const result = await api.post("/scrape-all", {});
       const now = new Date().toISOString();
-      setStores((s) => s.map((st) => (st.active ? { ...st, last_scraped: now } : st)));
+      setStores((s) =>
+        s.map((st) => (st.active ? { ...st, last_scraped: now } : st)),
+      );
       const count = result.total_products ?? result.count ?? "?";
       addLog(`Scraping completo — ${count} productos totales`, "success");
       push(`Scraping completo — ${count} productos totales`, "success");
@@ -340,7 +391,12 @@ export default function App() {
           : `✓ Todo clasificado (${n} procesados)`,
         "success",
       );
-      addLog(pending > 0 ? `${n} clasificados — ${pending} pendientes` : `Todo clasificado (${n} procesados)`, "success");
+      addLog(
+        pending > 0
+          ? `${n} clasificados — ${pending} pendientes`
+          : `Todo clasificado (${n} procesados)`,
+        "success",
+      );
       bumpVersion();
     } catch (e) {
       addLog(`Error enriqueciendo: ${e.message}`, "error");
@@ -360,14 +416,18 @@ export default function App() {
       setByStore(result.status?.by_store || []);
       const n = result.enriched_this_run ?? 0;
       const pending =
-        result.status?.by_store?.find((s) => s.store_id === storeId)?.pending ?? 0;
+        result.status?.by_store?.find((s) => s.store_id === storeId)?.pending ??
+        0;
       push(
         pending > 0
           ? `✓ ${n} clasificados — quedan ${pending} pendientes`
           : `✓ Tienda completamente clasificada (${n} procesados)`,
         "success",
       );
-      addLog(`"${store?.name}": ${n} clasificados — ${pending} pendientes`, "success");
+      addLog(
+        `"${store?.name}": ${n} clasificados — ${pending} pendientes`,
+        "success",
+      );
       bumpVersion();
     } catch (e) {
       addLog(`Error enriqueciendo "${store?.name}": ${e.message}`, "error");
@@ -397,11 +457,14 @@ export default function App() {
       setReEnriching(false);
     }
   }
- 
+
   async function handleReEnrichStore(storeId) {
     setReEnrichingStore(storeId);
     try {
-      const result = await api.post(`/enrich/${storeId}?batch_size=50&force=true`, {});
+      const result = await api.post(
+        `/enrich/${storeId}?batch_size=50&force=true`,
+        {},
+      );
       setEnrichStatus(result.status);
       setByStore(result.status?.by_store || []);
       const n = result.enriched_this_run ?? 0;
@@ -467,7 +530,14 @@ export default function App() {
               ["search", "Buscar"],
               ["stores", "Tiendas"],
               ["stats", "Stats"],
-              ...(effectiveIsAdmin ? [["log", `Log${adminLog.length > 0 ? ` (${adminLog.length})` : ""}`]] : []),
+              ...(effectiveIsAdmin
+                ? [
+                    [
+                      "log",
+                      `Log${adminLog.length > 0 ? ` (${adminLog.length})` : ""}`,
+                    ],
+                  ]
+                : []),
             ].map(([id, label]) => (
               <button
                 key={id}
@@ -542,6 +612,8 @@ export default function App() {
               onReEnrichStore={handleReEnrichStore}
               reEnriching={reEnriching}
               reEnrichingStore={reEnrichingStore}
+              onEdit={handleEditStore}
+              editingStore={editingStore}
             />
           )}
 
@@ -559,7 +631,10 @@ export default function App() {
             <div>
               <div className="section-header">
                 <h2 className="section-title">Log de operaciones</h2>
-                <button className="btn secondary" onClick={() => setAdminLog([])}>
+                <button
+                  className="btn secondary"
+                  onClick={() => setAdminLog([])}
+                >
                   Limpiar
                 </button>
               </div>
