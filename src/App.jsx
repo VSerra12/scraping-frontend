@@ -9,6 +9,8 @@ import { StatsView } from "./views/StatsView";
 import { AdminView, ADMIN_HASH } from "./views/AdminView";
 import Logo from "/src/assets/scrapeando_isologo.svg";
 import "./App.css";
+import { Footer } from "./components/Footer";
+
 
 export default function App() {
   const [view, setView] = useState("search");
@@ -659,6 +661,7 @@ export default function App() {
             </div>
           )}
         </main>
+        <Footer />
       </div>
     </>
   );
