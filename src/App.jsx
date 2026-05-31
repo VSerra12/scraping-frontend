@@ -9,7 +9,7 @@ import { StatsView } from "./views/StatsView";
 import { AdminView, ADMIN_HASH } from "./views/AdminView";
 import Logo from "/src/assets/scrapeando_isologo.svg";
 import "./App.css";
-//import { Footer } from "./components/Footer";
+import { Footer } from "./components/Footer";
 
 
 
@@ -662,7 +662,7 @@ export default function App() {
             </div>
           )}
         </main>
-        {/* <Footer /> */}
+        <Footer />
       </div>
     </>
   );
