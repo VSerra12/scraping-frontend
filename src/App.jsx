@@ -12,6 +12,7 @@ import "./App.css";
 import { Footer } from "./components/Footer";
 
 
+
 export default function App() {
   const [view, setView] = useState("search");
   const { toasts, push } = useToast();
