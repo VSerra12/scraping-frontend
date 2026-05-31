@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { timeAgo } from "../lib/api";
 import { StoreProductsPanel } from "./StoreProductsPanel";
-import { EditStoreModal } from "./EditStoreModal";
+import { EditStoreModal } from "./AddStoreModal";
+
+const SCRAPER_LABELS = {
+  auto:        "auto",
+  tiendanube:  "TN",
+  woocommerce: "WC",
+  shopnatural: "SN",
+  generic:     "gen",
+};
 
 export function StoreRow({
   store,
@@ -9,31 +17,37 @@ export function StoreRow({
   onDelete,
   onEnrich,
   onReEnrich,
-  onEdit,           // nueva prop: (storeId, formData) => void
+  onUpdate,          // nuevo: callback para guardar edición
   scraping,
   enrichingStore,
   reEnrichingStore,
-  editingStore,     // nueva prop: id de la tienda que se está guardando
   storeStatus,
   isAdmin,
 }) {
-  const [showPanel, setShowPanel]   = useState(false);
-  const [showEdit,  setShowEdit]    = useState(false);
+  const [showPanel, setShowPanel] = useState(false);
+  const [showEdit,  setShowEdit]  = useState(false);
+  const [saving,    setSaving]    = useState(false);
 
   const pct        = storeStatus?.percent    ?? null;
   const pending    = storeStatus?.pending    ?? null;
   const total      = storeStatus?.total      ?? null;
   const classified = storeStatus?.classified ?? null;
 
-  const isEnriching   = enrichingStore  === store.id;
+  const isEnriching   = enrichingStore === store.id;
   const isReEnriching = reEnrichingStore === store.id;
-  const isScraping    = scraping        === store.id;
-  const isEditing     = editingStore    === store.id;
-  const isBusy        = isEnriching || isReEnriching || isScraping || isEditing;
+  const isScraping    = scraping === store.id;
+  const isBusy        = isEnriching || isReEnriching || isScraping || saving;
 
-  async function handleSave(storeId, formData) {
-    await onEdit(storeId, formData);
-    setShowEdit(false);
+  const scraperLabel = SCRAPER_LABELS[store.scraper_type] || store.scraper_type || "auto";
+
+  async function handleSave(id, data) {
+    setSaving(true);
+    try {
+      await onUpdate(id, data);
+      setShowEdit(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -45,7 +59,26 @@ export function StoreRow({
         <div className="store-info">
           <span className={`status-dot ${store.active ? "active" : ""}`} />
           <div style={{ flex: 1 }}>
-            <p className="store-name">{store.name}</p>
+            <p className="store-name">
+              {store.name}
+              {/* Badge del tipo de scraper */}
+              <span style={{
+                marginLeft: "0.5rem",
+                fontSize: "0.58rem",
+                fontFamily: "'Unbounded', sans-serif",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                fontWeight: 700,
+                background: store.scraper_type === "auto" ? "var(--surface2)" : "var(--lila)",
+                border: `1px solid ${store.scraper_type === "auto" ? "var(--border)" : "var(--indigo-border)"}`,
+                color: store.scraper_type === "auto" ? "var(--muted)" : "var(--indigo)",
+                padding: "0.1rem 0.4rem",
+                borderRadius: "4px",
+                verticalAlign: "middle",
+              }}>
+                {scraperLabel}
+              </span>
+            </p>
             <p className="store-url">{store.url}</p>
             {total > 0 && (
               <div className="store-progress">
@@ -68,7 +101,7 @@ export function StoreRow({
 
           {isAdmin && (
             <>
-              {/* ☰ Ver / ocultar panel de productos */}
+              {/* ☰ Panel de productos */}
               {total > 0 && (
                 <button
                   className="btn-icon"
@@ -90,22 +123,19 @@ export function StoreRow({
                 className="btn-icon"
                 onClick={() => setShowEdit(true)}
                 disabled={isBusy}
-                title="Editar datos de la tienda"
-                style={{
-                  borderColor: showEdit ? "var(--coral)" : "var(--coral-border)",
-                  color:       showEdit ? "var(--coral)" : "var(--muted)",
-                }}
+                title="Editar tienda (nombre, URL, tipo de scraper…)"
+                style={{ fontSize: "0.75rem" }}
               >
                 ✎
               </button>
 
-              {/* ↺ Re-enriquecer toda la tienda (batch) */}
+              {/* ↺ Re-enriquecer */}
               {total > 0 && (
                 <button
                   className="btn-icon"
                   onClick={() => onReEnrich(store.id)}
                   disabled={isBusy}
-                  title="Re-clasificar todos los productos de esta tienda (batch)"
+                  title="Re-clasificar todos los productos de esta tienda"
                   style={{
                     borderColor: isReEnriching ? "var(--indigo)" : "var(--indigo-border)",
                     color:       isReEnriching ? "var(--indigo)" : "var(--muted)",
@@ -149,21 +179,16 @@ export function StoreRow({
         </div>
       </div>
 
-      {/* Panel expandible de productos */}
       {showPanel && (
-        <StoreProductsPanel
-          store={store}
-          onClose={() => setShowPanel(false)}
-        />
+        <StoreProductsPanel store={store} onClose={() => setShowPanel(false)} />
       )}
 
-      {/* Modal de edición */}
       {showEdit && (
         <EditStoreModal
           store={store}
           onClose={() => setShowEdit(false)}
           onSave={handleSave}
-          loading={isEditing}
+          loading={saving}
         />
       )}
     </div>
